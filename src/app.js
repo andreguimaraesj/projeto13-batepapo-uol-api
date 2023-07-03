@@ -18,12 +18,12 @@ dotenv.config();
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
 let db;
 
-
 mongoClient.connect()
     .then(() => db = mongoClient.db())
     .catch((err) => console.log(err.message))
+ 
 
-//PARTICIPANT ROUTES
+
 app.post('/participants', (req,res) =>{
     const {name} = req.body;
 
@@ -118,6 +118,9 @@ app.get('/messages', (req, res) => {
     const messagesLimit = parseInt(req.query.limit);
     const {user} = req.headers;
 
+    const { error, value } = joi.number().integer().min(1).validate(req.query.limit);
+
+
     let messagesQuery;
 
     let queryParams = {
@@ -128,8 +131,8 @@ app.get('/messages', (req, res) => {
         ],
     };
 
-    if (messagesLimit) {
-        if (isNaN(messagesLimit) || messagesLimit <= 0) {
+    if (messagesLimit !== undefined) {
+        if (error) {
             return res.status(422).send('Limite de mensagens inválido.');
         }
         messagesQuery = db.collection('messages').find(queryParams).limit(messagesLimit);
@@ -150,7 +153,8 @@ app.get('/messages', (req, res) => {
     }
 });
 
-//STATUS ROUTE
+ 
+
 app.post('/status', (req,res)=>{
     const {user} = req.headers
 
@@ -174,7 +178,6 @@ app.post('/status', (req,res)=>{
     })
     .catch(err => res.status(500).send(err.message))
 });
-
 
 
 app.listen(5000);
