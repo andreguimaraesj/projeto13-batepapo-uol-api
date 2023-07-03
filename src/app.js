@@ -14,16 +14,17 @@ app.use(express.json());
 dotenv.config();
 
 
+
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
 let db;
+
 
 mongoClient.connect()
     .then(() => db = mongoClient.db())
     .catch((err) => console.log(err.message))
 
-
-
- app.post('/participants', (req,res) =>{
+//PARTICIPANT ROUTES
+app.post('/participants', (req,res) =>{
     const {name} = req.body;
 
     const validation = joi.string().required().validate(name, { abortEarly: false });
@@ -44,7 +45,19 @@ mongoClient.connect()
             name: name,
             lastStatus: Date.now()
         })
-            .then(() => res.sendStatus(201))
+        .then(() => {
+            const message = {
+                from: name,
+                to: 'Todos',
+                text: 'entra na sala...',
+                type: 'status',
+                time: DayJS().locale('pt-br').format('HH:mm:ss')
+            };
+
+            db.collection("messages").insertOne(message)
+                .then(() => res.sendStatus(201))
+                .catch(err => res.status(500).send(err.message));
+        })
             .catch(err => res.status(500).send(err.message))
     })
     .catch(err => res.status(500).send(err.message))
@@ -57,24 +70,27 @@ app.get('/participants', (req,res)=>{
     .catch(err => res.status(500).send(err.message))
 });
 
-//MESSAGES ROUTES
+ 
+
 
 app.post('/messages', (req,res)=>{
     const {to, text, type} = req.body;
     const from = req.headers.user;
 
     const schema = joi.object({
+        from: joi.string().required(),
         to: joi.string().required().min(1),
         text: joi.string().required().min(1),
         type: joi.string().valid('message', 'private_message').required(),
-        from: joi.string().required()
+        time: joi.any()
     });
 
     const message = {
+        from,
         to,
         text,
         type,
-        from
+        time: DayJS().locale('pt-br').format('HH:mm:ss')
     }
 
     const validation = schema.validate(message, { abortEarly: false });
@@ -90,7 +106,7 @@ app.post('/messages', (req,res)=>{
             return res.status(422).send("Participante não existente.");
         }
 
-        db.collection("messages").insertOne({message, time: DayJS().locale('pt-br').format('HH:mm:ss')})
+        db.collection("messages").insertOne(message)
             .then(() => res.sendStatus(201))
             .catch(err => res.status(500).send(err.message))
     })
@@ -133,6 +149,32 @@ app.get('/messages', (req, res) => {
         res.status(500).send('Ocorreu um erro ao obter as mensagens.');
     }
 });
+
+//STATUS ROUTE
+app.post('/status', (req,res)=>{
+    const {user} = req.headers
+
+    if(!user){
+        return res.sendStatus(404)
+    }
+
+    db.collection("participants").findOne({ name: user })
+    .then(participant => {
+        if (!participant) {
+            return res.sendStatus(404);
+        }
+
+        db.collection("participants").updateOne({ name: user }, { $set: { lastStatus: Date.now() } })
+            .then(() => {
+                res.sendStatus(200);
+            })
+            .catch((err) => {
+                res.status(500).send(err.message);
+            });
+    })
+    .catch(err => res.status(500).send(err.message))
+});
+
 
 
 app.listen(5000);
