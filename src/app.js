@@ -5,6 +5,8 @@ import joi from 'joi'
 import dotenv from 'dotenv';
 import DayJS from 'dayjs';
 import 'dayjs/locale/pt-br.js';
+import { MongoClient, ObjectId } from "mongodb";
+
 
 
 
@@ -181,29 +183,67 @@ app.post('/status', (req,res)=>{
 
 
 
+// function removeInactiveParticipants() {
+//     const allowedTime = Date.now() - 10000;
+
+//     db.collection("participants").find({ lastStatus: { $lt: allowedTime } }).toArray()
+//         .then((participants) => {
+//             participants.forEach((participant) => {
+//                 db.collection("participants").deleteOne({ _id: new ObjectId(participant._id) });
+
+//                 const message = {
+//                     from: participant.name,
+//                     to: "Todos",
+//                     text: 'sai da sala...',
+//                     type: "status",
+//                     time: DayJS().locale("pt-br").format("HH:mm:ss"),
+//                 };
+
+//                 db.collection("messages").insertOne(message);
+//             });
+//         })
+//         .catch((err) => {
+//             console.error("Erro ao remover usuários inativos:", err);
+//         });
+// }
+
+
+
 function removeInactiveParticipants() {
     const allowedTime = Date.now() - 10000;
 
-    db.collection("participants").find({ lastStatus: { $lt: allowedTime } }).toArray()
+    db.collection("participants")
+        .find({ lastStatus: { $lt: allowedTime } })
+        .toArray()
         .then((participants) => {
             participants.forEach((participant) => {
-                db.collection("participants").deleteOne({ _id: new ObjectId(participant._id) });
+                db.collection("participants")
+                    .deleteOne({ _id: participant._id })
+                    .then(() => {
+                        const message = {
+                            from: participant.name,
+                            to: "Todos",
+                            text: 'sai da sala...',
+                            type: "status",
+                            time: DayJS().locale("pt-br").format("HH:mm:ss"),
+                        };
 
-                const message = {
-                    from: participant.name,
-                    to: "Todos",
-                    text: 'sai da sala...',
-                    type: "status",
-                    time: DayJS().locale("pt-br").format("HH:mm:ss"),
-                };
-
-                db.collection("messages").insertOne(message);
+                        db.collection("messages")
+                            .insertOne(message)
+                            .catch((err) => {
+                                console.error("Erro ao inserir mensagem:", err);
+                            });
+                    })
+                    .catch((err) => {
+                        console.error("Erro ao remover participante:", err);
+                    });
             });
         })
         .catch((err) => {
-            console.error("Erro ao remover usuários inativos:", err);
+            console.error("Erro ao obter participantes inativos:", err);
         });
 }
+
 
 setInterval(removeInactiveParticipants, 15000);  
 
