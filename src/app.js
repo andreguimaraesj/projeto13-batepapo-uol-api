@@ -69,8 +69,8 @@ app.get('/participants', (req,res)=>{
     .then(users => res.send(users))
     .catch(err => res.status(500).send(err.message))
 });
+  
 
- 
 
 
 app.post('/messages', (req,res)=>{
@@ -153,8 +153,7 @@ app.get('/messages', (req, res) => {
     }
 });
 
- 
-
+//STATUS ROUTE
 app.post('/status', (req,res)=>{
     const {user} = req.headers
 
@@ -178,6 +177,35 @@ app.post('/status', (req,res)=>{
     })
     .catch(err => res.status(500).send(err.message))
 });
+ 
+
+
+
+function removeInactiveParticipants() {
+    const allowedTime = Date.now() - 10000;
+
+    db.collection("participants").find({ lastStatus: { $lt: allowedTime } }).toArray()
+        .then((participants) => {
+            participants.forEach((participant) => {
+                db.collection("participants").deleteOne({ _id: new ObjectId(participant._id) });
+
+                const message = {
+                    from: participant.name,
+                    to: "Todos",
+                    text: 'sai da sala...',
+                    type: "status",
+                    time: DayJS().locale("pt-br").format("HH:mm:ss"),
+                };
+
+                db.collection("messages").insertOne(message);
+            });
+        })
+        .catch((err) => {
+            console.error("Erro ao remover usuários inativos:", err);
+        });
+}
+
+setInterval(removeInactiveParticipants, 15000);  
 
 
 app.listen(5000);
